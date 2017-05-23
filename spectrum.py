@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import eigvalsh
+from scipy.linalg import eigvalsh,eigvals
 
 def choicemap(ks, ps):
     numk = len(ks)
@@ -50,12 +50,15 @@ def adjacency_spectrum_simple(G, weight):
     return eigvalsh(nx.adjacency_matrix(G, weight=weight).todense(), 
                     overwrite_a=True, check_finite=False)
 
-def compute_spectrum(G, laplacian=False, weight='weight'):
-    if laplacian:
+def compute_spectrum(G, matrix=None, weight='weight'):
+    if matrix is None:
+        #spec = nx.linalg.spectrum.adjacency_spectrum(G, weight)
+        spec = adjacency_spectrum_simple(G, weight)
+    elif matrix == 'laplacian':
         spec = nx.linalg.spectrum.laplacian_spectrum(G, weight)
-    else:
-        spec = nx.linalg.spectrum.adjacency_spectrum(G, weight)
-        #spec = adjacency_spectrum_simple(G, weight)
+    elif matrix == 'nonbacktracking':
+        B = non_backtracking_matrix(G)
+        spec = eigvals(B.todense(), overwrite_a=True, check_finite=False)
     return spec
 
 def normal_complex(a, b, n):
@@ -126,7 +129,7 @@ def resolvent_y(z, ks, ps, alpha, maxiter=100):
     assert np.imag(z) != 0, ("resolvent should be called with "
                              "nonzero imaginary part")
     s0 = np.array( [z for i in range(len(ks))] )
-    return resolvent_y_iter_analytic(z, ks, ps, alpha, s0, maxiter)
+    return resolvent_y_iter_analytic(z, ks, bps, alpha, s0, maxiter)
 
 def resolvent_x(z, yz, ks, ps, alpha):
     assert np.imag(z) != 0, ("resolvent should be called with "
@@ -152,3 +155,22 @@ def spectrum_analytic(xs, epsilon, ks, ps, alpha):
     return mu
 
 
+def non_backtracking_matrix(G, oriented=True):
+    num_E=G.number_of_edges()
+    if oriented:
+        B=np.zeros((2*num_E,2*num_E))
+        edge_list=G.edges()
+        # append other orientation
+        edge_list = edge_list + [(e[1],e[0]) for e in edge_list]
+        for i,e in enumerate(edge_list):
+            for j,f in enumerate(edge_list):
+                if e[1]==f[0] and e[0]!=f[1]:
+                    B[i,j]=1
+    else:
+        B=np.zeros((num_E,num_E))
+        edge_list=G.edges()
+        for i,e in enumerate(edge_list):
+            for j,f in enumerate(edge_list):
+                if e[1]==f[0] and e[0]!=f[1]:
+                    B[i,j]=1
+    return B
