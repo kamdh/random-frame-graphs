@@ -2,6 +2,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import eigvalsh,eigvals
+from nonbacktracking import nonbacktracking_matrix
 
 def choicemap(ks, ps):
     numk = len(ks)
@@ -47,8 +48,11 @@ def adjacency_spectrum_simple(G, weight):
     symmetric solver and disables some of the checks.
     '''
     assert isinstance(G, nx.classes.Graph)
-    return eigvalsh(nx.adjacency_matrix(G, weight=weight).todense(), 
-                    overwrite_a=True, check_finite=False)
+    A = nx.adjacency_matrix(G, weight=weight).todense()
+    if (A.transpose() == A).all():
+        return eigvalsh(A, overwrite_a = True, check_finite = False)
+    else: 
+        return eigvals(A, overwrite_a = True, check_finite = False)
 
 def compute_spectrum(G, matrix=None, weight='weight'):
     if matrix is None:
@@ -57,7 +61,7 @@ def compute_spectrum(G, matrix=None, weight='weight'):
     elif matrix == 'laplacian':
         spec = nx.linalg.spectrum.laplacian_spectrum(G, weight)
     elif matrix == 'nonbacktracking':
-        B = non_backtracking_matrix(G)
+        B = nonbacktracking_matrix(G)
         spec = eigvals(B.todense(), overwrite_a=True, check_finite=False)
     return spec
 
@@ -154,23 +158,3 @@ def spectrum_analytic(xs, epsilon, ks, ps, alpha):
     mu = np.imag( z ) / np.pi
     return mu
 
-
-def non_backtracking_matrix(G, oriented=True):
-    num_E=G.number_of_edges()
-    if oriented:
-        B=np.zeros((2*num_E,2*num_E))
-        edge_list=G.edges()
-        # append other orientation
-        edge_list = edge_list + [(e[1],e[0]) for e in edge_list]
-        for i,e in enumerate(edge_list):
-            for j,f in enumerate(edge_list):
-                if e[1]==f[0] and e[0]!=f[1]:
-                    B[i,j]=1
-    else:
-        B=np.zeros((num_E,num_E))
-        edge_list=G.edges()
-        for i,e in enumerate(edge_list):
-            for j,f in enumerate(edge_list):
-                if e[1]==f[0] and e[0]!=f[1]:
-                    B[i,j]=1
-    return B

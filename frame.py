@@ -22,8 +22,12 @@ class Frame(nx.DiGraph):
     '''
     def __init__(self, data=None, p={}, deg={}):
         super(Frame,self).__init__(data)
-        nx.set_node_attributes(self, 'p', p)
-        nx.set_edge_attributes(self, 'deg', deg)
+        if set(self.nodes()) != set(p.keys()):
+            raise NetworkXError('node set does not match keys in p dict')
+        nx.set_node_attributes(self, p, name='p')
+        if set(self.edges()) != set(deg.keys()):
+            raise NetworkXError('edge set does not match keys in deg dict')
+        nx.set_edge_attributes(self, deg, name='deg')
         if not self.detailed_balance():
             raise NetworkXError('detailed balance not satisfied')
         
@@ -38,15 +42,15 @@ class Frame(nx.DiGraph):
         -------
           True or False
         '''
-        for e in self.edges_iter():
+        for e in self.edges():
             u = e[0]
             v = e[1]
             k_uv = self.adj[u][v]['deg']
             if self.has_edge(v,u):
                 # check detailed balance
                 k_vu = self.adj[v][u]['deg']
-                pu = self.node[u]['p']
-                pv = self.node[v]['p']
+                pu = self.nodes[u]['p']
+                pv = self.nodes[v]['p']
                 try:
                     np.testing.assert_approx_equal(pu*k_uv,pv*k_vu)
                 except AssertionError:
@@ -67,7 +71,7 @@ class Frame(nx.DiGraph):
         '''
         assert y.shape == (self.number_of_edges(),)
         yout = np.zeros(self.number_of_edges(), dtype=np.complex)
-        edgelist = self.edges()
+        edgelist = list(self.edges())
         for idx, e in enumerate(edgelist):
             (u,v) = e
             sumval = 0.0
@@ -104,7 +108,7 @@ class Frame(nx.DiGraph):
         assert y.shape == (self.number_of_edges(),)
         xout = np.zeros(self.number_of_nodes(), dtype=np.complex)
         nodelist = self.nodes()
-        edgelist = self.edges()
+        edgelist = list(self.edges())
         for idx, v in enumerate(nodelist):
             sumval = 0.0
             for w in self.neighbors(v):
@@ -127,18 +131,21 @@ class Frame(nx.DiGraph):
             y_soln_real = root(self._yfun_root_real, y0, args=(z, alpha)).x
             y_soln_cmplx = y_soln_real[0:N] + 1.0j*y_soln_real[N:2*N]
             x_soln = self._xfun(y_soln_cmplx, z, alpha)
-            ps = [d['p'] for n,d in self.nodes_iter(data=True)]
+            ps = [d['p'] for n,d in self.nodes(data=True)]
             density = np.imag(np.dot(ps, x_soln))/np.pi
             density_vec[idx] = density
         return density_vec
 
     def base_matrices(self):
-        P=np.matrix(np.diag([d['p'] for n,d in self.nodes_iter(data=True)]))
-        K=nx.linalg.adjacency_matrix(self, weight='deg').todense()
-        Q=P*K/np.tile(np.sum(P*K,axis=1),(1,self.number_of_nodes()))
-        return P,K,Q
+        Pdiag = np.matrix(np.diag([d['p'] for n,d in self.nodes(data=True)]))
+        K = nx.linalg.adjacency_matrix(self, weight='deg').todense()
+        Q = Pdiag * K / \
+          np.tile(np.sum(Pdiag*K,axis=1),
+                  (1,self.number_of_nodes())).astype(float)
+        P = K/np.tile(np.sum(K, axis=1), (1,self.number_of_nodes())).astype(float)
+        return Pdiag, K, Q, P
 
-    def sample(self,n):
+    def sample(self, n, parallel_edges=True):
         '''
         Sample a random graph from the frame family.
 
@@ -159,8 +166,8 @@ class Frame(nx.DiGraph):
         adj_mat = np.zeros((n,n))
         n_block = np.zeros(self.number_of_nodes(),dtype=int)
         # check realizability and fill n_block
-        for u in self.nodes_iter():
-            p = self.node[u]['p']
+        for u in self.nodes():
+            p = self.nodes[u]['p']
             try:
                 np.testing.assert_almost_equal(p*n, int(p*n))
             except AssertionError:
@@ -170,14 +177,14 @@ class Frame(nx.DiGraph):
         n_blocksum=np.cumsum(n_block)
         # fill in adj_mat
         traversed={}
-        for e in self.edges_iter():
+        for e in self.edges():
             traversed[e]=1
             u = e[0]
             v = e[1]
             k_uv = self.adj[u][v]['deg']
             k_vu = self.adj[v][u]['deg']
-            n_u = int(n*self.node[u]['p'])
-            n_v = int(n*self.node[v]['p'])
+            n_u = int(n*self.nodes[u]['p'])
+            n_v = int(n*self.nodes[v]['p'])
             if u == v:
                 # on-diagonal block
                 reg_graph = nx.generators.random_regular_graph(k_uv,n_u)
@@ -187,27 +194,28 @@ class Frame(nx.DiGraph):
                 else:
                     i_lower=n_blocksum[u-1]
                 adj_mat[i_lower:n_blocksum[u],i_lower:n_blocksum[u]] = X
-            elif not traversed.has_key((v,u)):
+            elif not (v,u) in traversed:
                 # off-diagonal block
                 g1 = bipartite_configuration_model([k_uv]*n_u, [k_vu]*n_v)
                 X,Xt = _extract_blocks(nx.to_numpy_matrix(g1), n_u, n_v)
                 if u == 0:
                     i_lower=0
                 else:
-                    i_lower=n_blocksum[u-1]                
+                    i_lower=n_blocksum[u-1]
                 if v == 0:
                     j_lower=0
                 else:
-                    j_lower=n_blocksum[v-1]                
-                adj_mat[i_lower:n_blocksum[u],j_lower:n_blocksum[v]] = X
-                adj_mat[j_lower:n_blocksum[v],i_lower:n_blocksum[u]] = Xt
-        adj_mat=np.matrix(adj_mat)
+                    j_lower=n_blocksum[v-1]
+                adj_mat[i_lower:n_blocksum[u], j_lower:n_blocksum[v]] = X
+                adj_mat[j_lower:n_blocksum[v], i_lower:n_blocksum[u]] = Xt
+        adj_mat = np.matrix(adj_mat)
         # adj_mat now filled in, so generate graph
-        g = nx.from_numpy_matrix(adj_mat)
+        g = nx.from_numpy_matrix(adj_mat, parallel_edges=parallel_edges)
+        # set block attributes
         b = dict(zip(range(0,n_blocksum[0]), [0]*n_blocksum[0]))
         for i in range(1,self.number_of_nodes()):
             b.update(dict(zip(range(n_blocksum[i-1],n_blocksum[i]),
                               [i]*n_block[i])))
-        nx.set_node_attributes(g, 'block', b)
+        nx.set_node_attributes(g, b, name='block')
         return g
         
