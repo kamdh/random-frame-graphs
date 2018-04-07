@@ -1,5 +1,6 @@
-from spectrum import compute_spectrum
-from frame import Frame
+from framegraph.spectrum import compute_spectrum
+from framegraph.frame import Frame
+from framegraph.nonbacktracking import *
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +9,7 @@ plt.close('all')
 
 epsilon = 0.00001
 offset = 0.5
-num_vertex = 40
+num_vertex = 200
 num_rep = 20
 
 ps = {0: 0.7, 1: 0.3}
@@ -45,7 +46,6 @@ print("|l_2|: emp = %f, guess = %f" %(l_2,l_2_guess))
 plt.savefig("../figures/bipartite/l_2_n_%d_k1_%d_k2_%d.png"
             %(num_vertex,deg[(0,1)],deg[(1,0)]))
 
-from nonbacktracking import *
 B_eigs = compute_spectrum(g.sample(num_vertex, parallel_edges=True),
                           matrix="nonbacktracking")
 plt.figure()
