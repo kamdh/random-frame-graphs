@@ -229,4 +229,3 @@ class Frame(nx.DiGraph):
                               [i]*n_block[i])))
         nx.set_node_attributes(g, b, name='block')
         return g
-        
