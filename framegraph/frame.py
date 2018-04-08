@@ -196,7 +196,18 @@ class Frame(nx.DiGraph):
                 adj_mat[i_lower:n_blocksum[u],i_lower:n_blocksum[u]] = X
             elif not (v,u) in traversed:
                 # off-diagonal block
-                g1 = bipartite_configuration_model([k_uv]*n_u, [k_vu]*n_v)
+                if parallel_edges:
+                    g1 = bipartite_configuration_model([k_uv]*n_u, [k_vu]*n_v)
+                else:
+                    while True:
+                        g1 = bipartite_configuration_model([k_uv]*n_u, \
+                            [k_vu]*n_v, create_using=nx.Graph())
+                        deg_list = set(g1.degree)
+                        deg_desire = [(i, k_uv) for i in range(n_u)]
+                        deg_desire.extend([(i+n_u, k_vu) for i in range(n_v)])
+                        deg_desire = set(deg_desire)
+                        if deg_list == deg_desire:
+                            break
                 X,Xt = _extract_blocks(nx.to_numpy_matrix(g1), n_u, n_v)
                 if u == 0:
                     i_lower=0

@@ -38,7 +38,8 @@ eig_arr = np.zeros(num_rep)
 for r in range(num_rep):
     gsamp = g.sample(num_vertex, parallel_edges=True)
     Aspec_samp = compute_spectrum(gsamp)
-    l_2 = np.sort(abs(Aspec_samp))[-3]
+    Aspec_sort = np.sort(abs(Aspec_samp))
+    l_2 = Aspec_sort[-3]
     eig_arr[r] = l_2
     print("solved rep %d, eig = %f" % (r,l_2))
 
@@ -69,16 +70,31 @@ plt.savefig("../figures/bipartite/l_2_n_%d_k1_%d_k2_%d.png"
                 dpi=200)
 
 ## Nonbacktracking spectrum
+gsamp = g.sample(num_vertex, parallel_edges=False)
 B_eigs = compute_spectrum(gsamp, matrix="nonbacktracking")
 
 plt.figure(2)
-plt.scatter(B_eigs.real, B_eigs.imag, alpha = 0.15)
+plt.scatter(B_eigs.real, B_eigs.imag, alpha = 0.15, color='orange')
 plt.xlim((-4,4))
 plt.ylim((-4,4))
 plt.axis('equal')
 plt.gca().add_artist(plt.Circle((0,0),
     np.power((deg[(0,1)] - 1) * (deg[(1,0)] - 1), 0.25),
     color='k', linestyle='dashed', fill=False))
+plt.scatter([+1, -1],[0,0], marker='.', color='k')
+plt.scatter([0, 0],
+            [np.sqrt(deg[(0,1)] - 1), -np.sqrt(deg[(0,1)] - 1)],
+             marker='*', color='b')
+plt.scatter([-np.sqrt((deg[(0,1)] - 1) * (deg[(1,0)] - 1)),
+             np.sqrt((deg[(0,1)] - 1) * (deg[(1,0)] - 1))],
+            [0, 0],
+             marker='+', color='b')
+# plt.scatter([0, 0],
+#             [np.sqrt(deg[(1,0)] - 1), -np.sqrt(deg[(1,0)] - 1)],
+#              marker='1', color='k')
+plt.axis('equal')
+plt.xlim((-4,4))
+plt.ylim((-4,4))
 plt.ylabel('Imaginary part')
 plt.xlabel('Real part')
 plt.title('Spectrum of $B$')

@@ -2,7 +2,7 @@ import networkx as nx
 from networkx.utils import not_implemented_for
 
 @not_implemented_for('multigraph')
-def nonbacktracking_matrix(G,weight=None):
+def nonbacktracking_matrix(G, weight=None):
     """Return non-backtracking matrix of G.
 
     The non-backtracking matrix [1]_ is indexed by the oriented edges of G,
@@ -51,7 +51,7 @@ def nonbacktracking_matrix(G,weight=None):
                 if weight is None:
                     wt = 1
                 else:
-                    wt = G[e1][e2].get(weight,1)+G[e2][f2].get(weight,1)
+                    wt = G[e1][e2].get(weight,1) + G[e2][f2].get(weight,1)
                 B[ei,fi] = wt
     return B.asformat('csc')
 
