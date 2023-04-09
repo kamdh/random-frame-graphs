@@ -2,7 +2,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import eigvalsh,eigvals
-from nonbacktracking import nonbacktracking_matrix
+from .nonbacktracking import nonbacktracking_matrix
 
 def choicemap(ks, ps):
     numk = len(ks)

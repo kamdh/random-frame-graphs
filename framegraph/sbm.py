@@ -23,8 +23,12 @@ class SBM(nx.DiGraph):
     
     def __init__(self, data=None, p={}, deg={}):
         super(SBM,self).__init__(data)
-        nx.set_node_attributes(self, 'p', p)
-        nx.set_edge_attributes(self, 'deg', deg)
+        if set(self.nodes()) != set(p.keys()):
+            raise NetworkXError('node set does not match keys in p dict')
+        nx.set_node_attributes(self, p, name='p')
+        if set(self.edges()) != set(deg.keys()):
+            raise NetworkXError('edge set does not match keys in deg dict')
+        nx.set_edge_attributes(self, deg, name='deg')
         if not self.detailed_balance():
             raise NetworkXError('detailed balance not satisfied')
         
@@ -39,7 +43,7 @@ class SBM(nx.DiGraph):
         -------
           True or False
         '''
-        for e in self.edges_iter():
+        for e in self.edges():
             u = e[0]
             v = e[1]
             k_uv = self.adj[u][v]['deg']
@@ -99,7 +103,7 @@ class SBM(nx.DiGraph):
         
         assert y.shape == (self.number_of_edges(), n_replica)
         yout = [_update_col(self, y, z, n_replica, alpha,
-                            self.edges())
+                            list(self.edges()))
                 for col in range(n_replica)]
         yout = np.hstack(tuple(yout))
         # ## pymp parallel version
@@ -150,7 +154,7 @@ class SBM(nx.DiGraph):
         assert y.shape == (self.number_of_edges(), n_replica, n_iter)
         y = np.reshape(y, (self.number_of_edges(), n_replica * n_iter))
         xout = [_update_col(self, y, z, n_replica * n_iter, alpha,
-                            self.nodes(), self.edges())
+                            self.nodes(), list(self.edges()))
                 for col in range(n_replica)]
         xout = np.hstack(tuple(xout))
         # ## pymp parallel version
@@ -179,21 +183,22 @@ class SBM(nx.DiGraph):
         # setup some vars
         N = self.number_of_edges()
         y0 = offset*np.ones((N,1)) + offset*np.ones((N,1))*1.0j
-        ps = [d['p'] for n,d in self.nodes_iter(data=True)]
+        ps = [d['p'] for n,d in self.nodes(data=True)]
         # parallel compute density at each point x
         density_vec = pymp.shared.array(xs.shape, dtype='float64')
         with pymp.Parallel(if_=parallel) as p:
             for idx in p.xrange(len(xs)):
+        # for idx, x in enumerate(xs):
                 x = xs[idx]
                 y_pop = np.tile(y0,(1,n_replica))
-                x_pop = np.zeros((self.number_of_nodes(),n_replica),
-                                 dtype=np.complex)
+                x_pop = np.zeros((self.number_of_nodes(), n_replica),
+                                     dtype=np.complex)
                 y_avg = np.zeros((N, n_replica, int(y_max_iter - y_transient)),
-                                 dtype=np.complex)
+                                     dtype=np.complex)
                 x_avg = np.zeros((self.number_of_nodes(),
-                                  n_replica,
-                                  x_max_iter),
-                                 dtype=np.complex)
+                                      n_replica,
+                                      x_max_iter),
+                                     dtype=np.complex)
                 z = x + epsilon*1.0j
                 for i in range(y_transient):
                     y_pop = self._yfun_iterate(y_pop, z, n_replica, alpha)
@@ -202,7 +207,7 @@ class SBM(nx.DiGraph):
                     y_avg[:,:,i] = y_pop
                 for i in range(x_max_iter):
                     x_pop = self._xfun_iterate(y_avg, z, n_replica,
-                                               y_avg.shape[2], alpha)
+                                                   y_avg.shape[2], alpha)
                     x_avg[:,:,i] = x_pop
                 #x_pop = self._xfun_iterate(y_pop, z, n_replica, alpha)
                 #x_pop = self._xfun_iterate(y_avg, z, n_replica, alpha)
@@ -222,7 +227,7 @@ class SBM(nx.DiGraph):
         return density_vec
 
     def base_matrices(self):
-        P=np.matrix(np.diag([d['p'] for n,d in self.nodes_iter(data=True)]))
+        P=np.matrix(np.diag([d['p'] for n,d in self.nodes(data=True)]))
         K=nx.linalg.adjacency_matrix(self, weight='deg').todense()
         Q=P*K/np.tile(np.sum(P*K,axis=1),(1,self.number_of_nodes()))
         return P,K,Q
@@ -248,7 +253,7 @@ class SBM(nx.DiGraph):
         adj_mat = np.zeros((n,n))
         n_block = np.zeros(self.number_of_nodes(),dtype=int)
         # check realizability and fill n_block
-        for u in self.nodes_iter():
+        for u in self.nodes():
             p = self.node[u]['p']
             try:
                 np.testing.assert_almost_equal(p*n, int(p*n))
@@ -259,7 +264,7 @@ class SBM(nx.DiGraph):
         n_blocksum=np.cumsum(n_block)
         # fill in adj_mat
         traversed={}
-        for e in self.edges_iter():
+        for e in self.edges():
             traversed[e]=1
             u = e[0]
             v = e[1]

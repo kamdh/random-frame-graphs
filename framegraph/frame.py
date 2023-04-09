@@ -145,7 +145,7 @@ class Frame(nx.DiGraph):
         P = K/np.tile(np.sum(K, axis=1), (1,self.number_of_nodes())).astype(float)
         return Pdiag, K, Q, P
 
-    def sample(self, n, parallel_edges=True):
+    def sample(self, n, parallel_edges=True, verbose=False):
         '''
         Sample a random graph from the frame family.
 
@@ -187,7 +187,25 @@ class Frame(nx.DiGraph):
             n_v = int(n*self.nodes[v]['p'])
             if u == v:
                 # on-diagonal block
-                reg_graph = nx.generators.random_regular_graph(k_uv,n_u)
+                # Kim and Vu (2003) algorithm
+                # reg_graph = nx.generators.random_regular_graph(k_uv,n_u)
+                # Configuration model algorithm
+                if parallel_edges:
+                    reg_graph = \
+                      nx.generators.configuration_model([k_uv]*n_u)
+                else:
+                    n_gen = 0
+                    while True:
+                        n_gen += 1
+                        reg_graph =\
+                          nx.generators.configuration_model([k_uv]*n_u,
+                            create_using=nx.Graph())
+                        deg_list = set(reg_graph.degree)
+                        deg_desire = set([(i, k_uv) for i in range(n_u)])
+                        if deg_list == deg_desire:
+                            break
+                if verbose and not parallel_edges:
+                    print("block (%d,%d) generated %d times" % (u,v,n_gen))
                 X = np.array(nx.to_numpy_matrix(reg_graph))
                 if u == 0:
                     i_lower=0
@@ -199,7 +217,9 @@ class Frame(nx.DiGraph):
                 if parallel_edges:
                     g1 = bipartite_configuration_model([k_uv]*n_u, [k_vu]*n_v)
                 else:
+                    n_gen = 0
                     while True:
+                        n_gen += 1
                         g1 = bipartite_configuration_model([k_uv]*n_u, \
                             [k_vu]*n_v, create_using=nx.Graph())
                         deg_list = set(g1.degree)
@@ -208,6 +228,8 @@ class Frame(nx.DiGraph):
                         deg_desire = set(deg_desire)
                         if deg_list == deg_desire:
                             break
+                if verbose and not parallel_edges:
+                    print("block (%d,%d) generated %d times" % (u,v,n_gen))
                 X,Xt = _extract_blocks(nx.to_numpy_matrix(g1), n_u, n_v)
                 if u == 0:
                     i_lower=0
@@ -229,3 +251,4 @@ class Frame(nx.DiGraph):
                               [i]*n_block[i])))
         nx.set_node_attributes(g, b, name='block')
         return g
+    
